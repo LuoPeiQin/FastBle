@@ -5,9 +5,9 @@ ext {
     ]
 
     android = [
-            minSdkVersion    : 14,
+            minSdkVersion    : 21,
             targetSdkVersion : 30,
-            compileSdkVersion: 30,
+            compileSdkVersion: 31,
             buildToolsVersion: "30.0.3",
     ]
 
