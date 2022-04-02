@@ -12,10 +12,9 @@ import com.clj.fastble.callback.BleNotifyCallback
 import com.clj.fastble.data.BleDevice
 import com.clj.fastble.exception.BleException
 import com.luo.skg.exdevice.BluetoothTransfer.SendMethod
+import com.luo.skg.exdevice.config.ExDeviceEnum
 import com.luo.skg.exdevice.helper.BluetoothHelper
-import com.luo.skg.exdevice.listener.OnBluetoothConnectStateChangeListener
 import com.luo.skg.exdevice.listener.OnBluetoothStateChangeListener
-import com.luo.skg.exdevice.listener.OnBluetoothTransmitListener
 import com.luo.skg.exdevice.protocol.Protocol
 
 /**
@@ -29,14 +28,11 @@ class BleExDeviceController private constructor(context: Context) {
     private var mProtocol: Protocol<*, *>? = null
     private val mContext: Context = context.applicationContext
 
-    //当前controller连接状态监听
-    private val mCurrentConnectListener: OnBluetoothConnectStateChangeListener? = null
+    // 监听手机蓝牙状态
+    private val bluetoothStateChangeListenerList = mutableListOf<OnBluetoothStateChangeListener>()
 
-    //传进来的连接状态监听
-    var connectStateChangeListener: OnBluetoothConnectStateChangeListener? = null
-
-    //监听手机蓝牙状态
-    var bluetoothStateChangeListener: OnBluetoothStateChangeListener? = null
+    // 已连接设备列表
+    private val connectedDeviceMap = hashMapOf<String, BleDevice>()
 
     companion object {
         @Volatile
@@ -79,16 +75,15 @@ class BleExDeviceController private constructor(context: Context) {
     /**
      * 连接设备
      */
-    fun connect(address: String, bleGattCallback: BleGattCallback) {
-        mProtocol = protocol
+    fun connect(address: String) {
+        mProtocol = null
         mHelper!!.connect(address)
         bleManager.connect(address, object : BleGattCallback() {
             override fun onStartConnect() {
-                bleGattCallback.onStartConnect()
             }
 
             override fun onConnectFail(bleDevice: BleDevice, exception: BleException?) {
-                bleGattCallback.onConnectFail(bleDevice, exception)
+                connectedDeviceMap.remove(bleDevice.mac)
             }
 
             override fun onConnectSuccess(
@@ -119,6 +114,7 @@ class BleExDeviceController private constructor(context: Context) {
                         }
 
                     })
+                connectedDeviceMap.put(bleDevice.mac, bleDevice)
             }
 
             override fun onDisConnected(
@@ -127,45 +123,11 @@ class BleExDeviceController private constructor(context: Context) {
                 gatt: BluetoothGatt?,
                 status: Int
             ) {
-
+                connectedDeviceMap.remove(device?.mac)
             }
 
         })
     }
-
-    fun registerBluetoothStateChangeListener(listener: OnBluetoothStateChangeListener?) {
-        bluetoothStateChangeListener = listener
-    }
-
-    fun unregisterBluetoothStateChangeListener() {
-        registerBluetoothStateChangeListener(null)
-    }
-
-    val transmitListener: OnBluetoothTransmitListener?
-        get() = mHelper?.transmitListener
-
-    fun registerTransmitListener(transmitListener: OnBluetoothTransmitListener?) {
-//        BleHelper.getInstance(mContext).setTransmitListener(transmitListener);
-//        TraditionHelper.getInstance(mContext).setTransmitListener(transmitListener);
-        mHelper!!.transmitListener = transmitListener
-    }
-
-    fun unregisterTransmitListener() {
-        registerTransmitListener(null)
-    }
-
-    var protocol: Protocol<*, *>?
-        get() = mProtocol
-        set(protocol) {
-            if (mProtocol != null) {
-                mProtocol!!.destroy()
-            }
-            mProtocol = protocol
-            if (mProtocol != null) mProtocol!!.initialize()
-            mHelper?.setProtocol(protocol)
-            BluetoothTransfer.getInstance().protocol = mProtocol
-        }
-
 
     fun sendData(data: ByteArray) {
         mHelper?.send(data)
@@ -174,10 +136,42 @@ class BleExDeviceController private constructor(context: Context) {
     /**
      * 断开设备
      */
-    fun disconnect() {
-        mHelper!!.disconnect()
-        unregisterBluetoothBroadcast()
-        BluetoothTransfer.getInstance().stop()
+    fun disconnect(macAddress: String) {
+        val deviceList = bleManager.multipleBluetoothController.deviceList
+        val device = deviceList.find { it.mac == macAddress }
+        bleManager.disconnect(device)
+    }
+
+    /**
+     * 断开所有外部设备
+     */
+    fun disconnectAllExDevice() {
+        val deviceList = bleManager.multipleBluetoothController.deviceList
+        deviceList.forEach {
+            if (isExDevice(it.name)) {
+                bleManager.disconnect(it)
+            }
+        }
+    }
+
+    /**
+     * 断开所有设备
+     */
+    fun disconnectAll() {
+        bleManager.disconnectAllDevice()
+    }
+
+    /**
+     * 系统蓝牙状态监听
+     */
+    fun registerBluetoothStatusChangeListener(listener: OnBluetoothStateChangeListener) {
+        if (!bluetoothStateChangeListenerList.contains(listener)) {
+            bluetoothStateChangeListenerList.add(listener)
+        }
+    }
+
+    fun unregisterBluetoothStatusChangeListener(listener: OnBluetoothStateChangeListener) {
+        bluetoothStateChangeListenerList.remove(listener)
     }
 
     /**
@@ -202,12 +196,12 @@ class BleExDeviceController private constructor(context: Context) {
                     val blueState = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, 0)
                     when (blueState) {
                         BluetoothAdapter.STATE_ON -> {
-                            bluetoothStateChangeListener?.let {
+                            bluetoothStateChangeListenerList.forEach {
                                 it.onBluetoothOpen()
                             }
                         }
                         BluetoothAdapter.STATE_OFF -> {
-                            bluetoothStateChangeListener?.let {
+                            bluetoothStateChangeListenerList.forEach {
                                 it.onBluetoothClose()
                             }
                         }
@@ -217,6 +211,18 @@ class BleExDeviceController private constructor(context: Context) {
                 else -> {}
             }
         }
+    }
+
+    /**
+     * 判断是否外部设备
+     */
+    fun isExDevice(bleName: String): Boolean {
+        ExDeviceEnum.values().forEach {
+            if (it.bleName == bleName) {
+                return true
+            }
+        }
+        return false
     }
 
 
