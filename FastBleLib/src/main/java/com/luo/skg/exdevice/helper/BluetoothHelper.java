@@ -59,7 +59,7 @@ public abstract class BluetoothHelper {
             return;
         if (transmitListener != null)
             transmitListener.onBluetoothRecvData(data);
-        BluetoothTransfer.getInstance().addRecvData(data);
+//        BluetoothTransfer.getInstance().addRecvData(data);
     }
 
     protected void configHandler() {

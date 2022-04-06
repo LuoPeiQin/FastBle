@@ -1,19 +1,18 @@
 package com.luo.skg.exdevice
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothGatt
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.util.Log
 import com.clj.fastble.BleManager
 import com.clj.fastble.callback.BleGattCallback
-import com.clj.fastble.callback.BleNotifyCallback
 import com.clj.fastble.data.BleDevice
 import com.clj.fastble.exception.BleException
-import com.luo.skg.exdevice.BluetoothTransfer.SendMethod
 import com.luo.skg.exdevice.config.ExDeviceEnum
-import com.luo.skg.exdevice.helper.BluetoothHelper
 import com.luo.skg.exdevice.listener.OnBluetoothStateChangeListener
 import com.luo.skg.exdevice.protocol.Protocol
 
@@ -24,17 +23,16 @@ import com.luo.skg.exdevice.protocol.Protocol
 class BleExDeviceController private constructor(context: Context) {
     private val bleManager = BleManager()
 
-    private val mHelper: BluetoothHelper? = null
-    private var mProtocol: Protocol<*, *>? = null
     private val mContext: Context = context.applicationContext
 
     // 监听手机蓝牙状态
     private val bluetoothStateChangeListenerList = mutableListOf<OnBluetoothStateChangeListener>()
 
     // 已连接设备列表
-    private val connectedDeviceMap = hashMapOf<String, BleDevice>()
+    private val connectedDeviceMap = hashMapOf<String, BaseExDevice>()
 
     companion object {
+        @SuppressLint("StaticFieldLeak")
         @Volatile
         private var instance: BleExDeviceController? = null
         fun getInstance(context: Context) = instance ?: synchronized(this) {
@@ -63,26 +61,17 @@ class BleExDeviceController private constructor(context: Context) {
         bleManager.enableBluetooth()
     }
 
-    val exDeviceList = mutableListOf<ExDevice>()
-
-    /**
-     * 设置发送方法
-     */
-    private fun setSendMethod() {
-        BluetoothTransfer.getInstance().send = SendMethod { data -> mHelper!!.send(data) }
-    }
-
     /**
      * 连接设备
      */
-    fun connect(address: String) {
-        mProtocol = null
-        mHelper!!.connect(address)
+    fun connect(address: String, protocol: Protocol<*, *>) {
         bleManager.connect(address, object : BleGattCallback() {
             override fun onStartConnect() {
+                Log.i("lpq", "onStartConnect: 开始连接")
             }
 
             override fun onConnectFail(bleDevice: BleDevice, exception: BleException?) {
+                Log.i("lpq", "onConnectFail: 连接失败")
                 connectedDeviceMap.remove(bleDevice.mac)
             }
 
@@ -91,30 +80,9 @@ class BleExDeviceController private constructor(context: Context) {
                 gatt: BluetoothGatt?,
                 status: Int
             ) {
-                /*设置发送方法*/
-                setSendMethod()
-                /**启动蓝牙传输 */
-                BluetoothTransfer.getInstance().start()
-                bleManager.notify(
-                    bleDevice,
-                    mProtocol!!.serviceUUID.toString(),
-                    mProtocol!!.recvTunnelUUID.toString(),
-                    object :
-                        BleNotifyCallback() {
-                        override fun onNotifySuccess() {
-                            // 打开通知操作成功
-                        }
-
-                        override fun onNotifyFailure(exception: BleException?) {
-                            // 打开通知操作失败
-                        }
-
-                        override fun onCharacteristicChanged(data: ByteArray) {
-                            // 打开通知后，设备发过来的数据将在这里出现
-                        }
-
-                    })
-                connectedDeviceMap.put(bleDevice.mac, bleDevice)
+                Log.i("lpq", "onConnectSuccess: 连接成功")
+                val baseExDevice = BaseExDevice(address, bleDevice, protocol)
+                connectedDeviceMap[bleDevice.mac] = baseExDevice
             }
 
             override fun onDisConnected(
@@ -123,14 +91,28 @@ class BleExDeviceController private constructor(context: Context) {
                 gatt: BluetoothGatt?,
                 status: Int
             ) {
-                connectedDeviceMap.remove(device?.mac)
+                Log.i("lpq", "onDisConnected: 连接断开")
+                val exDevice = connectedDeviceMap.remove(device?.mac)
+                exDevice?.destory()
             }
 
         })
     }
 
-    fun sendData(data: ByteArray) {
-        mHelper?.send(data)
+    /**
+     * 直接发送数据
+     */
+    fun sendDataDirect(address: String, data: ByteArray) {
+        val exDevice = connectedDeviceMap[address]
+        exDevice?.sendDataDirect(data)
+    }
+
+    /**
+     * 发送数据任务
+     */
+    fun sendTask(address: String, task: BluetoothTask<*>) {
+        val exDevice = connectedDeviceMap[address]
+        exDevice?.sendTask(task)
     }
 
     /**
@@ -162,7 +144,7 @@ class BleExDeviceController private constructor(context: Context) {
     }
 
     /**
-     * 系统蓝牙状态监听
+     * 添加系统蓝牙状态监听
      */
     fun registerBluetoothStatusChangeListener(listener: OnBluetoothStateChangeListener) {
         if (!bluetoothStateChangeListenerList.contains(listener)) {

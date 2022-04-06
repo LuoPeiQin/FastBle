@@ -55,8 +55,8 @@ public final class BluetoothTask<T extends Packet> {
      *
      * @return
      */
-    public void send() {
-        BluetoothTransfer.getInstance().addSendTask(this);
+    private void send() {
+//        BluetoothTransfer.getInstance().addSendTask(this);
     }
 
     /**
@@ -64,9 +64,9 @@ public final class BluetoothTask<T extends Packet> {
      *
      * @return
      */
-    public byte[] sendBySync2() {
-        if (BluetoothTransfer.getInstance().isStop())
-            return null;
+    private byte[] sendBySync2() {
+//        if (BluetoothTransfer.getInstance().isStop())
+//            return null;
         final byte[][] res = new byte[1][];
         synchronized (res) {
             setOnResult(new OnDataResultListener() {
@@ -93,9 +93,9 @@ public final class BluetoothTask<T extends Packet> {
      *
      * @return
      */
-    public T sendBySync() {
-        if (BluetoothTransfer.getInstance().isStop())
-            return null;
+    private T sendBySync() {
+//        if (BluetoothTransfer.getInstance().isStop())
+//            return null;
         final T[] res = (T[]) new Packet[1];
         synchronized (this) {
             setOnResult(new OnResultListener<T>() {

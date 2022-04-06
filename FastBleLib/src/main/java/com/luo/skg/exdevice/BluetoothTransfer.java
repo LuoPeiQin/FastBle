@@ -18,7 +18,6 @@ public final class BluetoothTransfer {
 
     private static final short RECV_BUFFER_SIZE = 1024;       //接收缓冲区大小
     private static final short TIMEOUT_CHECK_ACCURACY = 100; //超时检查的精确度，即超时时间的误差范围，毫秒级
-    public static BluetoothTransfer instance;
     private Protocol mProtocol;                             //所使用协议
     private SendMethod send;                                //发送蓝牙数据的方法，发送时必须设置好Task的发送时间
     private LinkedList<BluetoothTask> sendList;             //发送任务执行队列，暂时先自行管理同步
@@ -31,17 +30,8 @@ public final class BluetoothTransfer {
     private Object recvLock, sendLock, waitRespondLock;
     private BluetoothDispatch dispatch;
 
-    public static BluetoothTransfer getInstance() {
-        if (instance == null) {
-            synchronized (BluetoothTransfer.class) {
-                if (instance == null)
-                    instance = new BluetoothTransfer();
-            }
-        }
-        return instance;
-    }
-
-    private BluetoothTransfer() {
+    public BluetoothTransfer(Protocol protocol) {
+        mProtocol = protocol;
         sendList = new LinkedList<>();
         waitRespondList = new LinkedList<>();
         recvBuf = ByteBuffer.allocate(RECV_BUFFER_SIZE);

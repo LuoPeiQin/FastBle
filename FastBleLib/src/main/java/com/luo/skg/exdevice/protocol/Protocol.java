@@ -1,7 +1,5 @@
 package com.luo.skg.exdevice.protocol;
 
-import android.content.Context;
-
 import com.luo.skg.exdevice.packet.Packet;
 
 import java.util.UUID;
@@ -12,7 +10,6 @@ import java.util.UUID;
 
 public abstract class Protocol<E extends Packet, T extends OnEventListener> {
     public final static int BLE_MAX_SEND_INTERVAL = 500;
-    protected Context mContext;
 
     private T mEventListener;
 
@@ -23,15 +20,7 @@ public abstract class Protocol<E extends Packet, T extends OnEventListener> {
     /**
      * 协议所特有的主动事件监听
      */
-    protected Protocol(Context context) {
-        this(context, null);
-    }
-
-    /**
-     * 协议所特有的主动事件监听
-     */
-    protected Protocol(Context context, T listener) {
-        mContext = context.getApplicationContext();
+    protected Protocol(T listener) {
         mEventListener = listener;
     }
 
@@ -46,7 +35,6 @@ public abstract class Protocol<E extends Packet, T extends OnEventListener> {
      * 销毁
      */
     public void destroy() {
-        mContext = null;
         mEventListener = null;
     }
 
@@ -72,20 +60,36 @@ public abstract class Protocol<E extends Packet, T extends OnEventListener> {
         return mEventListener != null;
     }
 
-    public UUID getServiceUUID() {
-        return UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb");
+    public String getServiceUUIDString() {
+        return "0000fff0-0000-1000-8000-00805f9b34fb";
     }
 
-    public UUID getSendTunnelUUID() {
-        return UUID.fromString("0000fff6-0000-1000-8000-00805f9b34fb");
+    public String getSendTunnelUUIDString() {
+        return "0000fff6-0000-1000-8000-00805f9b34fb";
     }
 
-    public UUID getRecvTunnelUUID() {
-        return UUID.fromString("0000fff7-0000-1000-8000-00805f9b34fb");
+    public String getRecvTunnelUUIDString() {
+        return "0000fff7-0000-1000-8000-00805f9b34fb";
     }
 
-    public UUID getDescriptorUUID() {
-        return UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+    public String getDescriptorUUIDString() {
+        return "00002902-0000-1000-8000-00805f9b34fb";
+    }
+
+    protected UUID getServiceUUID() {
+        return UUID.fromString(getServiceUUIDString());
+    }
+
+    protected UUID getSendTunnelUUID() {
+        return UUID.fromString(getSendTunnelUUIDString());
+    }
+
+    protected UUID getRecvTunnelUUID() {
+        return UUID.fromString(getRecvTunnelUUIDString());
+    }
+
+    protected UUID getDescriptorUUID() {
+        return UUID.fromString(getDescriptorUUIDString());
     }
 
     /**
